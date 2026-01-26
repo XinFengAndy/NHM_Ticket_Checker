@@ -1,4 +1,4 @@
-import requests
+from curl_cffi import requests  # <--- CHANGED IMPORT
 import smtplib
 import json
 import os
@@ -7,17 +7,17 @@ from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+
 def load_config():
     with open('config.json', 'r') as f:
         return json.load(f)
 
+
 def send_email(subject, body):
-    # Load secrets
     receiver_email = os.environ.get('RECEIVER')
     sender_email = os.environ.get('SENDER_USER')
     sender_password = os.environ.get('SENDER_PASS')
 
-    # Validate ALL credentials
     if not sender_email or not sender_password or not receiver_email:
         print("Error: Email credentials (SENDER_USER, SENDER_PASS, or RECEIVER) not found in env vars.")
         return
@@ -30,7 +30,6 @@ def send_email(subject, body):
     msg.attach(MIMEText(body, 'plain'))
 
     try:
-        # Using Gmail's SMTP server by default.
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(sender_email, sender_password)
@@ -41,51 +40,63 @@ def send_email(subject, body):
     except Exception as e:
         print(f"Failed to send email: {e}")
 
+
 def check_tickets():
     config = load_config()
 
+    # Browser-like headers to avoid 403 Forbidden errors
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://nhmpe.seetickets.com/timeslot/nhmpe",  # Critical: tells them where we came from
+        "Origin": "https://nhmpe.seetickets.com",
+        "X-Requested-With": "XMLHttpRequest"
     }
 
     try:
-        response = requests.get(config['url'], headers=headers)
-        response.raise_for_status()
+        print("Checking tickets...")
+        # 'impersonate="chrome120"' tricks the server into thinking this is a real Chrome browser
+        response = requests.get(config['url'], headers=headers, impersonate="chrome120", timeout=30)
+
+        if response.status_code != 200:
+            print(f"Error: Status Code {response.status_code}")
+            print(f"Response: {response.text[:200]}")  # Print first 200 chars for debugging
+            sys.exit(1)
+
         data = response.json()
+
     except Exception as e:
         print(f"Error fetching data: {e}")
         sys.exit(1)
 
-    # Parse date range
     start_date = datetime.strptime(config['start_date'], "%Y-%m-%d")
     end_date = datetime.strptime(config['end_date'], "%Y-%m-%d")
 
     available_dates = []
 
     for item in data:
-        # API returns dateTime like "2026-02-16T00:00:00"
         item_date_str = item.get('dateTime', '').split('T')[0]
         try:
             item_date = datetime.strptime(item_date_str, "%Y-%m-%d")
         except ValueError:
             continue
 
-        # Check if date is within range
         if start_date <= item_date <= end_date:
             has_offers = item.get('hasOffers', False)
             sold_out = item.get('soldOut', True)
 
-            # Condition: hasOffers is True OR soldOut is False
             if has_offers or not sold_out:
                 available_dates.append(f"{item_date_str} (Availability: {item.get('availability', 'Unknown')})")
 
     if available_dates:
         print("Tickets found! Sending email...")
         subject = "TICKET ALERT: NHMPE Tickets Available!"
-        body = f"Tickets are available for the following dates:\n\n" + "\n".join(available_dates) + f"\n\nLink: {config['url']}"
+        body = f"Tickets are available for the following dates:\n\n" + "\n".join(
+            available_dates) + f"\n\nLink: {config['url']}"
         send_email(subject, body)
     else:
         print("No tickets found matching criteria.")
+
 
 if __name__ == "__main__":
     check_tickets()
