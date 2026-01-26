@@ -1,14 +1,17 @@
 name: Ticket Monitor
 
-
 on:
+  # Schedule the script to run every 5 minutes
+  # (GitHub Actions does not officially support 1-minute intervals reliably)
   schedule:
     # Runs every 5 minutes (fastest reliable cron on GitHub Actions)
     - cron: '*/5 * * * *'
-  workflow_dispatch: # Allows you to manually trigger the run for testing
+
+  # Allows you to manually click a button to run the script immediately for testing
+  workflow_dispatch:
 
 jobs:
-  check-availability:
+  check-tickets:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,8 +30,8 @@ jobs:
 
       - name: Run Monitor Script
         env:
-          # These secrets must be set in your GitHub Repository Settings
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          # This maps the secrets you set in Settings to the Python os.environ
+          SENDER_USER: ${{ secrets.SENDER_USER }}
+          SENDER_PASS: ${{ secrets.SENDER_PASS }}
           RECEIVER: ${{ secrets.RECEIVER }}
         run: python monitor.py
