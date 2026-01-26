@@ -7,19 +7,19 @@ from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-
 def load_config():
     with open('config.json', 'r') as f:
         return json.load(f)
 
+def send_email(subject, body):
+    # Load secrets
+    receiver_email = os.environ.get('RECEIVER')
+    sender_email = os.environ.get('SENDER_USER')
+    sender_password = os.environ.get('SENDER_PASS')
 
-def send_email(subject, body, config):
-    sender_email = os.environ.get('EMAIL_USER')
-    sender_password = os.environ.get('EMAIL_PASS')
-    receiver_email = config['target_email']
-
-    if not sender_email or not sender_password:
-        print("Error: Email credentials not found in environment variables.")
+    # Validate ALL credentials
+    if not sender_email or not sender_password or not receiver_email:
+        print("Error: Email credentials (SENDER_USER, SENDER_PASS, or RECEIVER) not found in env vars.")
         return
 
     msg = MIMEMultipart()
@@ -31,7 +31,6 @@ def send_email(subject, body, config):
 
     try:
         # Using Gmail's SMTP server by default.
-        # Change to smtp.mail.yahoo.com or your provider if needed.
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(sender_email, sender_password)
@@ -41,7 +40,6 @@ def send_email(subject, body, config):
         print(f"Email sent to {receiver_email}")
     except Exception as e:
         print(f"Failed to send email: {e}")
-
 
 def check_tickets():
     config = load_config()
@@ -85,7 +83,7 @@ def check_tickets():
         print("Tickets found! Sending email...")
         subject = "TICKET ALERT: NHMPE Tickets Available!"
         body = f"Tickets are available for the following dates:\n\n" + "\n".join(available_dates) + f"\n\nLink: {config['url']}"
-        send_email(subject, body, config)
+        send_email(subject, body)
     else:
         print("No tickets found matching criteria.")
 
