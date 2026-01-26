@@ -1,0 +1,6 @@
+{
+    "url": "https://nhmpe.seetickets.com/timeslot/api/monthavailabledays/nhmpe?selectedMonth=2026-2-01",
+    "target_email": "your_email@example.com",
+    "start_date": "YYYY-MM-DD",
+    "end_date": "YYYY-MM-DD"
+}

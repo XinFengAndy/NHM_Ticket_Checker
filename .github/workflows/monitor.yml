@@ -1,0 +1,33 @@
+name: Ticket Monitor
+
+
+on:
+  schedule:
+    # Runs every 5 minutes (fastest reliable cron on GitHub Actions)
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Allows you to manually trigger the run for testing
+
+jobs:
+  check-availability:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Run Monitor Script
+        env:
+          # These secrets must be set in your GitHub Repository Settings
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+        run: python monitor.py
