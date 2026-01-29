@@ -5,7 +5,7 @@ on:
   # (GitHub Actions does not officially support 1-minute intervals reliably)
   schedule:
     # Runs every 5 minutes (fastest reliable cron on GitHub Actions)
-    - cron: '*/5 * * * *'
+    - cron: '*/10 * * * *'
 
   # Allows you to manually click a button to run the script immediately for testing
   workflow_dispatch:
