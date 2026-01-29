@@ -46,11 +46,17 @@ def check_tickets():
 
     # Browser-like headers to avoid 403 Forbidden errors
     headers = {
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "Accept-Language": "en-US,en;q=0.9",
+        "authority": "nhmpe.seetickets.com",
+        "method": "GET",
+        "path": "/timeslot/api/monthavailabledays/nhmpe?selectedMonth=2026-2-01",
+        "scheme": "https",
+        "Accept": "*/*",
+        "Accept-encoding": "gzip, deflate, br, zstd",
+        "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8,zh-CN;q=0.7,zh;q=0.6",
+        "priority": "u=1, i",
         "Referer": "https://nhmpe.seetickets.com/timeslot/nhmpe",  # Critical: tells them where we came from
-        "Origin": "https://nhmpe.seetickets.com",
-        "X-Requested-With": "XMLHttpRequest"
+        # "Origin": "https://nhmpe.seetickets.com",
+        # "X-Requested-With": "XMLHttpRequest"
     }
 
     try:
@@ -90,12 +96,12 @@ def check_tickets():
 
     if available_dates:
         print("Tickets found! Sending email...")
-        subject = "TICKET ALERT: NHMPE Tickets Available!"
+        subject = "TICKET ALERT: National History Museum Pokemon E Tickets Available!"
         body = f"Tickets are available for the following dates:\n\n" + "\n".join(
             available_dates) + f"\n\nLink: {config['url']}"
         send_email(subject, body)
     else:
-        print("No tickets found matching criteria.")
+        print("No tickets found from", start_date, "to", end_date)
 
 
 if __name__ == "__main__":
