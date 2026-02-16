@@ -1,8 +1,9 @@
-from curl_cffi import requests  # <--- CHANGED IMPORT
+from curl_cffi import requests
 import smtplib
 import json
 import os
 import sys
+import time
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -41,32 +42,58 @@ def send_email(subject, body):
         print(f"Failed to send email: {e}")
 
 
+def get_timeslots(date_str, headers):
+    """
+    Fetches specific timeslots for a given date.
+    """
+    url = f"https://nhmpe.seetickets.com/timeslot/api/showsforday/nhmpe?selectedDate={date_str}"
+    try:
+        print(f"  Checking timeslots for {date_str}...")
+        response = requests.get(url, headers=headers, impersonate="chrome120", timeout=30)
+
+        if response.status_code != 200:
+            print(f"  Failed to get timeslots: Status {response.status_code}")
+            return []
+
+        data = response.json()
+        available_times = []
+
+        for show in data:
+            # Check if the specific timeslot is available
+            # Note: API keys are usually CaseSensitive. We check mostly for SoldOut=False
+            is_sold_out = show.get('SoldOut', True)
+            is_available = show.get('Available', False)
+
+            if not is_sold_out and is_available:
+                # Try to grab the time label
+                time_label = show.get('Time') or show.get('ShowTime') or "Unknown Time"
+                available_times.append(time_label)
+
+        return available_times
+
+    except Exception as e:
+        print(f"  Error fetching timeslots: {e}")
+        return []
+
+
 def check_tickets():
     config = load_config()
 
-    # Browser-like headers to avoid 403 Forbidden errors
+    # Browser-like headers
     headers = {
-        "authority": "nhmpe.seetickets.com",
-        "method": "GET",
-        "path": "/timeslot/api/monthavailabledays/nhmpe?selectedMonth=2026-2-01",
-        "scheme": "https",
-        "Accept": "*/*",
-        "Accept-encoding": "gzip, deflate, br, zstd",
-        "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8,zh-CN;q=0.7,zh;q=0.6",
-        "priority": "u=1, i",
-        "Referer": "https://nhmpe.seetickets.com/timeslot/nhmpe",  # Critical: tells them where we came from
-        # "Origin": "https://nhmpe.seetickets.com",
-        # "X-Requested-With": "XMLHttpRequest"
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://nhmpe.seetickets.com/timeslot/nhmpe",
+        "Origin": "https://nhmpe.seetickets.com",
+        "X-Requested-With": "XMLHttpRequest"
     }
 
     try:
-        print("Checking tickets...")
-        # 'impersonate="chrome120"' tricks the server into thinking this is a real Chrome browser
+        print("Checking available dates...")
         response = requests.get(config['url'], headers=headers, impersonate="chrome120", timeout=30)
 
         if response.status_code != 200:
             print(f"Error: Status Code {response.status_code}")
-            print(f"Response: {response.text[:200]}")  # Print first 200 chars for debugging
             sys.exit(1)
 
         data = response.json()
@@ -78,7 +105,7 @@ def check_tickets():
     start_date = datetime.strptime(config['start_date'], "%Y-%m-%d")
     end_date = datetime.strptime(config['end_date'], "%Y-%m-%d")
 
-    available_dates = []
+    found_slots = []
 
     for item in data:
         item_date_str = item.get('dateTime', '').split('T')[0]
@@ -87,21 +114,33 @@ def check_tickets():
         except ValueError:
             continue
 
+        # Check date range
         if start_date <= item_date <= end_date:
             has_offers = item.get('hasOffers', False)
             sold_out = item.get('soldOut', True)
 
+            # If date is available, drill down to fetch timeslots
             if has_offers or not sold_out:
-                available_dates.append(f"{item_date_str} (Availability: {item.get('availability', 'Unknown')})")
+                times = get_timeslots(item_date_str, headers)
+                if times:
+                    found_slots.append(f"Date: {item_date_str}\n   Times: {', '.join(times)}")
+                else:
+                    # Date is technically available, but maybe no specific slots returned?
+                    # We add it anyway just in case.
+                    found_slots.append(f"Date: {item_date_str} (Specific times not found)")
 
-    if available_dates:
+                # Sleep briefly to be polite to the server
+                time.sleep(1)
+
+    if found_slots:
         print("Tickets found! Sending email...")
-        subject = "TICKET ALERT: National History Museum Pokemon E Tickets Available!"
-        body = f"Tickets are available for the following dates:\n\n" + "\n".join(
-            available_dates) + f"\n\nLink: {config['url']}"
+        subject = "TICKET ALERT: NHMPE Tickets Available!"
+        body = (f"Tickets are available for the following slots:\n\n" +
+                "\n\n".join(found_slots) +
+                f"\n\nLink: https://nhmpe.seetickets.com/timeslot/nhmpe")
         send_email(subject, body)
     else:
-        print("No tickets found from", start_date, "to", end_date)
+        print("No tickets found matching criteria.")
 
 
 if __name__ == "__main__":
